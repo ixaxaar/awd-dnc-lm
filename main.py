@@ -9,16 +9,16 @@ from torch.autograd import Variable
 import data
 import model
 
-from utils import batchify, get_batch, repackage_hidden
+from utils import batchify, get_batch, repackage_hidden, repackage_hidden_dnc
 
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='data/penn/',
                     help='location of the data corpus')
 parser.add_argument('--model', type=str, default='LSTM',
-                    help='type of recurrent net (LSTM, QRNN)')
+                    help='type of recurrent net (LSTM, QRNN, DNC)')
 parser.add_argument('--emsize', type=int, default=400,
                     help='size of word embeddings')
-parser.add_argument('--nhid', type=int, default=1150,
+parser.add_argument('--nhid', type=int, default=400,
                     help='number of hidden units per layer')
 parser.add_argument('--nlayers', type=int, default=3,
                     help='number of layers')
@@ -48,8 +48,7 @@ parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--nonmono', type=int, default=5,
                     help='random seed')
-parser.add_argument('--cuda', action='store_false',
-                    help='use CUDA')
+parser.add_argument('--cuda', type=int, default=-1, help='Cuda GPU ID, -1 for CPU')
 parser.add_argument('--log-interval', type=int, default=200, metavar='N',
                     help='report interval')
 randomhash = ''.join(str(time.time()).split('.'))
@@ -61,13 +60,18 @@ parser.add_argument('--beta', type=float, default=1,
                     help='beta slowness regularization applied on RNN activiation (beta = 0 means no regularization)')
 parser.add_argument('--wdecay', type=float, default=1.2e-6,
                     help='weight decay applied to all weights')
+
+parser.add_argument('--nr_cells', type=int, default=8, help='Number of memory cells of the DNC')
+parser.add_argument('--read_heads', type=int, default=4, help='Number of read heads of the DNC')
+parser.add_argument('--cell_size', type=int, default=400, help='Cell sizes of DNC')
+
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 if torch.cuda.is_available():
-    if not args.cuda:
+    if args.cuda == -1:
         print("WARNING: You have a CUDA device, so you should probably run with --cuda")
     else:
         torch.cuda.manual_seed(args.seed)
@@ -89,9 +93,25 @@ test_data = batchify(corpus.test, test_batch_size, args)
 ###############################################################################
 
 ntokens = len(corpus.dictionary)
-model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
-if args.cuda:
-    model.cuda()
+model = model.RNNModel(
+    args.model,
+    ntokens,
+    args.emsize,
+    args.nhid,
+    args.nlayers,
+    args.dropout,
+    args.dropouth,
+    args.dropouti,
+    args.dropoute,
+    args.wdrop,
+    args.tied,
+    args.nr_cells,
+    args.read_heads,
+    args.cell_size,
+    args.cuda
+)
+if args.cuda != -1:
+    model.cuda(args.cuda)
 total_params = sum(x.size()[0] * x.size()[1] if len(x.size()) > 1 else x.size()[0] for x in model.parameters())
 print('Args:', args)
 print('Model total parameters:', total_params)
@@ -114,7 +134,10 @@ def evaluate(data_source, batch_size=10):
         output, hidden = model(data, hidden)
         output_flat = output.view(-1, ntokens)
         total_loss += len(data) * criterion(output_flat, targets).data
-        hidden = repackage_hidden(hidden)
+        if args.model.lower() != 'dnc':
+            hidden = repackage_hidden(hidden)
+        else:
+            hidden = repackage_hidden_dnc(hidden)
     return total_loss[0] / len(data_source)
 
 
@@ -140,7 +163,10 @@ def train():
 
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
-        hidden = repackage_hidden(hidden)
+        if args.model.lower() != 'dnc':
+            hidden = repackage_hidden(hidden)
+        else:
+            hidden = repackage_hidden_dnc(hidden)
         optimizer.zero_grad()
 
         output, hidden, rnn_hs, dropped_rnn_hs = model(data, hidden, return_h=True)

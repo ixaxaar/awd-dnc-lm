@@ -6,17 +6,36 @@ from embed_regularize import embedded_dropout
 from locked_dropout import LockedDropout
 from weight_drop import WeightDrop
 
+from dnc import DNC
+
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
 
-    def __init__(self, rnn_type, ntoken, ninp, nhid, nlayers, dropout=0.5, dropouth=0.5, dropouti=0.5, dropoute=0.1, wdrop=0, tie_weights=False):
+    def __init__(self,
+        rnn_type,
+        ntoken,
+        ninp,
+        nhid,
+        nlayers,
+        dropout=0.5,
+        dropouth=0.5,
+        dropouti=0.5,
+        dropoute=0.1,
+        wdrop=0,
+        tie_weights=False,
+        nr_cells=5,
+        read_heads=2,
+        cell_size=10,
+        gpu_id=-1,
+        independent_linears=True
+    ):
         super(RNNModel, self).__init__()
         self.lockdrop = LockedDropout()
         self.idrop = nn.Dropout(dropouti)
         self.hdrop = nn.Dropout(dropouth)
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp)
-        assert rnn_type in ['LSTM', 'QRNN'], 'RNN type is not supported'
+        assert rnn_type in ['LSTM', 'QRNN', 'DNC'], 'RNN type is not supported'
         if rnn_type == 'LSTM':
             self.rnns = [torch.nn.LSTM(ninp if l == 0 else nhid, nhid if l != nlayers - 1 else ninp, 1, dropout=0) for l in range(nlayers)]
             if wdrop:
@@ -26,6 +45,22 @@ class RNNModel(nn.Module):
             self.rnns = [QRNNLayer(input_size=ninp if l == 0 else nhid, hidden_size=nhid if l != nlayers - 1 else ninp, save_prev_x=True, zoneout=0, window=2 if l == 0 else 1, output_gate=True if l != nlayers - 1 else True) for l in range(nlayers)]
             for rnn in self.rnns:
                 rnn.linear = WeightDrop(rnn.linear, ['weight'], dropout=wdrop)
+        elif rnn_type.lower() == 'dnc':
+            if nhid != ninp:
+                raise ValueError('When using DNC units, nhid must be equal to emsize')
+            self.rnns = []
+            self.rnns.append(
+                DNC(
+                    'lstm',
+                    hidden_size=nhid,
+                    num_layers=nlayers,
+                    nr_cells=nr_cells,
+                    read_heads=read_heads,
+                    cell_size=cell_size,
+                    gpu_id=gpu_id,
+                    independent_linears=independent_linears
+                )
+            )
         print(self.rnns)
         self.rnns = torch.nn.ModuleList(self.rnns)
         self.decoder = nn.Linear(nhid, ntoken)
@@ -74,7 +109,12 @@ class RNNModel(nn.Module):
         outputs = []
         for l, rnn in enumerate(self.rnns):
             current_input = raw_output
-            raw_output, new_h = rnn(raw_output, hidden[l])
+            if self.rnn_type.lower() == 'dnc':
+                raw_output = raw_output.transpose(0, 1)
+                raw_output, new_h = rnn(raw_output, hidden[l], reset_experience=True)
+                raw_output = raw_output.transpose(0, 1)
+            else:
+                raw_output, new_h = rnn(raw_output, hidden[l])
             new_hidden.append(new_h)
             raw_outputs.append(raw_output)
             if l != self.nlayers - 1:
@@ -101,3 +141,5 @@ class RNNModel(nn.Module):
         elif self.rnn_type == 'QRNN':
             return [Variable(weight.new(1, bsz, self.nhid if l != self.nlayers - 1 else self.ninp).zero_())
                     for l in range(self.nlayers)]
+        elif self.rnn_type.lower() == 'dnc':
+            return [None]
