@@ -22,7 +22,7 @@ parser.add_argument('--nhid', type=int, default=400,
                     help='number of hidden units per layer')
 parser.add_argument('--nlayers', type=int, default=3,
                     help='number of layers')
-parser.add_argument('--lr', type=float, default=30,
+parser.add_argument('--lr', type=float, default=0.001,
                     help='initial learning rate')
 parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
@@ -104,7 +104,7 @@ model = model.RNNModel(
     args.dropouti,
     args.dropoute,
     args.wdrop,
-    args.tied,
+    False,
     args.nr_cells,
     args.read_heads,
     args.cell_size,
@@ -188,10 +188,13 @@ def train():
         if batch % args.log_interval == 0 and batch > 0:
             cur_loss = total_loss[0] / args.log_interval
             elapsed = time.time() - start_time
-            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.2f} | ms/batch {:5.2f} | '
-                    'loss {:5.2f} | ppl {:8.2f}'.format(
-                epoch, batch, len(train_data) // args.bptt, optimizer.param_groups[0]['lr'],
-                elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
+            try:
+                print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.8f} | ms/batch {:5.2f} | '
+                        'loss {:5.2f} | ppl {:8.2f}'.format(
+                    epoch, batch, len(train_data) // args.bptt, optimizer.param_groups[0]['lr'],
+                    elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
+            except Exception as e:
+                pass
             total_loss = 0
             start_time = time.time()
         ###
@@ -205,51 +208,52 @@ stored_loss = 100000000
 
 # At any point you can hit Ctrl + C to break out of training early.
 try:
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.wdecay)
+    # optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.wdecay)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
         train()
-        if 't0' in optimizer.param_groups[0]:
-            tmp = {}
-            for prm in model.parameters():
-                tmp[prm] = prm.data.clone()
-                prm.data = optimizer.state[prm]['ax'].clone()
+        # if 't0' in optimizer.param_groups[0]:
+        #     tmp = {}
+        #     for prm in model.parameters():
+        #         tmp[prm] = prm.data.clone()
+        #         prm.data = optimizer.state[prm]['ax'].clone()
 
-            val_loss2 = evaluate(val_data)
-            print('-' * 89)
-            print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
-                    'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
-                                               val_loss2, math.exp(val_loss2)))
-            print('-' * 89)
+        val_loss2 = evaluate(val_data)
+        print('-' * 89)
+        print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
+                'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
+                                           val_loss2, math.exp(val_loss2)))
+        print('-' * 89)
 
-            if val_loss2 < stored_loss:
-                with open(args.save, 'wb') as f:
-                    torch.save(model, f)
-                print('Saving Averaged!')
-                stored_loss = val_loss2
+        if val_loss2 < stored_loss:
+            with open(args.save, 'wb') as f:
+                torch.save(model, f)
+            print('Saving Averaged!')
+            stored_loss = val_loss2
 
-            for prm in model.parameters():
-                prm.data = tmp[prm].clone()
+        # for prm in model.parameters():
+        #     prm.data = tmp[prm].clone()
 
-        else:
-            val_loss = evaluate(val_data, eval_batch_size)
-            print('-' * 89)
-            print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
-                    'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
-                                               val_loss, math.exp(val_loss)))
-            print('-' * 89)
+        # else:
+        #     val_loss = evaluate(val_data, eval_batch_size)
+        #     print('-' * 89)
+        #     print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
+        #             'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
+        #                                        val_loss, math.exp(val_loss)))
+        #     print('-' * 89)
 
-            if val_loss < stored_loss:
-                with open(args.save, 'wb') as f:
-                    torch.save(model, f)
-                print('Saving Normal!')
-                stored_loss = val_loss
+        #     if val_loss < stored_loss:
+        #         with open(args.save, 'wb') as f:
+        #             torch.save(model, f)
+        #         print('Saving Normal!')
+        #         stored_loss = val_loss
 
-            if 't0' not in optimizer.param_groups[0] and (len(best_val_loss)>args.nonmono and val_loss > min(best_val_loss[:-args.nonmono])):
-                print('Switching!')
-                optimizer = torch.optim.ASGD(model.parameters(), lr=args.lr, t0=0, lambd=0., weight_decay=args.wdecay)
-                #optimizer.param_groups[0]['lr'] /= 2.
-            best_val_loss.append(val_loss)
+        #     if 't0' not in optimizer.param_groups[0] and (len(best_val_loss)>args.nonmono and val_loss > min(best_val_loss[:-args.nonmono])):
+        #         print('Not Switching lol!')
+        #         # optimizer = torch.optim.ASGD(model.parameters(), lr=args.lr, t0=0, lambd=0., weight_decay=args.wdecay)
+        #         #optimizer.param_groups[0]['lr'] /= 2.
+        #     best_val_loss.append(val_loss)
 
 except KeyboardInterrupt:
     print('-' * 89)

@@ -123,7 +123,7 @@ class RNNModel(nn.Module):
                 outputs.append(raw_output)
         hidden = new_hidden
 
-        output = self.lockdrop(raw_output, self.dropout)
+        output = self.lockdrop(raw_output, self.dropout).contiguous()
         outputs.append(output)
 
         decoded = self.decoder(output.view(output.size(0)*output.size(1), output.size(2)))
