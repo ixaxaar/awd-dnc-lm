@@ -49,7 +49,7 @@ parser.add_argument('--seed', type=int, default=1111,
 parser.add_argument('--nonmono', type=int, default=5,
                     help='random seed')
 parser.add_argument('--cuda', type=int, default=-1, help='Cuda GPU ID, -1 for CPU')
-parser.add_argument('--log-interval', type=int, default=200, metavar='N',
+parser.add_argument('--log-interval', type=int, default=20, metavar='N',
                     help='report interval')
 randomhash = ''.join(str(time.time()).split('.'))
 parser.add_argument('--save', type=str,  default=randomhash+'.pt',
