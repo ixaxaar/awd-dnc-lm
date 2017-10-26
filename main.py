@@ -231,6 +231,10 @@ try:
                 torch.save(model, f)
             print('Saving Averaged!')
             stored_loss = val_loss2
+        # else:
+            # print('Reducing learning rate')
+            # args.lr = args.lr / 4
+            # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
         # for prm in model.parameters():
         #     prm.data = tmp[prm].clone()

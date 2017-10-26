@@ -50,11 +50,11 @@ class Memory(nn.Module):
 
     if hidden is None:
       return {
-          'memory': cuda(T.zeros(b, m, w).fill_(δ), gpu_id=self.gpu_id),
+          'memory': cuda(T.zeros(b, m, w).fill_(0), gpu_id=self.gpu_id),
           'link_matrix': cuda(T.zeros(b, 1, m, m), gpu_id=self.gpu_id),
           'precedence': cuda(T.zeros(b, 1, m), gpu_id=self.gpu_id),
-          'read_weights': cuda(T.zeros(b, r, m).fill_(δ), gpu_id=self.gpu_id),
-          'write_weights': cuda(T.zeros(b, 1, m).fill_(δ), gpu_id=self.gpu_id),
+          'read_weights': cuda(T.zeros(b, r, m).fill_(0), gpu_id=self.gpu_id),
+          'write_weights': cuda(T.zeros(b, 1, m).fill_(0), gpu_id=self.gpu_id),
           'usage_vector': cuda(T.zeros(b, m), gpu_id=self.gpu_id)
       }
     else:
@@ -93,7 +93,7 @@ class Memory(nn.Module):
     allocation_weights = sorted_allocation_weights.gather(1, φ.long())
 
     # update usage after allocating
-    usage += ((1 - usage) * write_gate * allocation_weights)
+    # usage += ((1 - usage) * write_gate * allocation_weights)
     return allocation_weights.unsqueeze(1), usage
 
   def write_weighting(self, memory, write_content_weights, allocation_weights, write_gate, allocation_gate):
@@ -130,7 +130,7 @@ class Memory(nn.Module):
     write_content_weights = self.content_weightings(hidden['memory'], write_key, write_strength)
 
     # get memory allocation
-    alloc, hidden['usage_vector'] = self.allocate(
+    alloc, _ = self.allocate(
         hidden['usage_vector'],
         allocation_gate * write_gate
     )

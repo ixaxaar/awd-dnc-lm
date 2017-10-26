@@ -179,7 +179,6 @@ class DNC(nn.Module):
       # outs[time] = out
       # outs[time] = T.clamp(outs[time], -self.clip, self.clip)
 
-    apply_dict(locals())
     return outs, read_vectors, (chx, mhx)
 
   def forward(self, input, hx=(None, None, None), reset_experience=False):
