@@ -110,7 +110,7 @@ class RNNModel(nn.Module):
             current_input = raw_output
             if self.rnn_type.lower() == 'dnc':
                 raw_output = raw_output.transpose(0, 1)
-                raw_output, new_h = rnn(raw_output, hidden[l], reset_experience=False)
+                raw_output, new_h = rnn(raw_output, hidden[l], reset_experience=True)
                 raw_output = raw_output.transpose(0, 1)
             else:
                 raw_output, new_h = rnn(raw_output, hidden[l])
