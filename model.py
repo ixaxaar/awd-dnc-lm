@@ -46,14 +46,13 @@ class RNNModel(nn.Module):
             for rnn in self.rnns:
                 rnn.linear = WeightDrop(rnn.linear, ['weight'], dropout=wdrop)
         elif rnn_type.lower() == 'dnc':
-            if nhid != ninp:
-                raise ValueError('When using DNC units, nhid must be equal to emsize')
             self.rnns = []
             self.rnns.append(
                 DNC(
-                    'lstm',
+                    input_size=ninp,
                     hidden_size=nhid,
                     num_layers=nlayers,
+                    rnn_type='lstm',
                     nr_cells=nr_cells,
                     read_heads=read_heads,
                     cell_size=cell_size,
