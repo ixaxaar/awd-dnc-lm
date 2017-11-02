@@ -17,6 +17,7 @@ class RNNModel(nn.Module):
         ninp,
         nhid,
         nlayers,
+        nhlayers,
         dropout=0.5,
         dropouth=0.5,
         dropouti=0.5,
@@ -27,7 +28,8 @@ class RNNModel(nn.Module):
         read_heads=2,
         cell_size=10,
         gpu_id=-1,
-        independent_linears=True
+        independent_linears=False,
+        debug=False
     ):
         super(RNNModel, self).__init__()
         self.lockdrop = LockedDropout()
@@ -35,6 +37,7 @@ class RNNModel(nn.Module):
         self.hdrop = nn.Dropout(dropouth)
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp)
+        self.debug = debug
         assert rnn_type in ['LSTM', 'QRNN', 'DNC'], 'RNN type is not supported'
         if rnn_type == 'LSTM':
             self.rnns = [torch.nn.LSTM(ninp if l == 0 else nhid, nhid if l != nlayers - 1 else ninp, 1, dropout=0) for l in range(nlayers)]
@@ -52,12 +55,14 @@ class RNNModel(nn.Module):
                     input_size=ninp,
                     hidden_size=nhid,
                     num_layers=nlayers,
+                    num_hidden_layers=nhlayers,
                     rnn_type='lstm',
                     nr_cells=nr_cells,
                     read_heads=read_heads,
                     cell_size=cell_size,
                     gpu_id=gpu_id,
-                    independent_linears=independent_linears
+                    independent_linears=independent_linears,
+                    debug=debug
                 )
             )
         print(self.rnns)
@@ -106,11 +111,17 @@ class RNNModel(nn.Module):
         #raw_output, hidden = self.rnn(emb, hidden)
         raw_outputs = []
         outputs = []
+        if self.debug:
+            debug_mems = []
         for l, rnn in enumerate(self.rnns):
             current_input = raw_output
             if self.rnn_type.lower() == 'dnc':
                 raw_output = raw_output.transpose(0, 1)
-                raw_output, new_h = rnn(raw_output, hidden[l], reset_experience=True)
+                if self.debug:
+                    raw_output, new_h, debug = rnn(raw_output, hidden[l], reset_experience=True)
+                    debug_mems.append(debug)
+                else:
+                    raw_output, new_h = rnn(raw_output, hidden[l], reset_experience=True)
                 raw_output = raw_output.transpose(0, 1)
             else:
                 raw_output, new_h = rnn(raw_output, hidden[l])
@@ -128,7 +139,11 @@ class RNNModel(nn.Module):
         decoded = self.decoder(output.view(output.size(0)*output.size(1), output.size(2)))
         result = decoded.view(output.size(0), output.size(1), decoded.size(1))
         if return_h:
+            if self.debug:
+                return result, hidden, raw_outputs, outputs, debug_mems
             return result, hidden, raw_outputs, outputs
+        if self.debug:
+            return result, hidden, debug_mems
         return result, hidden
 
     def init_hidden(self, bsz):

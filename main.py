@@ -6,6 +6,9 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
+from visdom import Visdom
+viz = Visdom()
+
 import data
 import model
 
@@ -22,6 +25,8 @@ parser.add_argument('--nhid', type=int, default=400,
                     help='number of hidden units per layer')
 parser.add_argument('--nlayers', type=int, default=3,
                     help='number of layers')
+parser.add_argument('--nhlayers', type=int, default=1,
+                    help='number of hidden layers')
 parser.add_argument('--lr', type=float, default=0.001,
                     help='initial learning rate')
 parser.add_argument('--clip', type=float, default=0.25,
@@ -99,6 +104,7 @@ model = model.RNNModel(
     args.emsize,
     args.nhid,
     args.nlayers,
+    args.nhlayers,
     args.dropout,
     args.dropouth,
     args.dropouti,
@@ -131,7 +137,7 @@ def evaluate(data_source, batch_size=10):
     hidden = model.init_hidden(batch_size)
     for i in range(0, data_source.size(0) - 1, args.bptt):
         data, targets = get_batch(data_source, i, args, evaluation=True)
-        output, hidden = model(data, hidden)
+        output, hidden, _ = model(data, hidden)
         output_flat = output.view(-1, ntokens)
         total_loss += len(data) * criterion(output_flat, targets).data
         if args.model.lower() != 'dnc':
@@ -149,6 +155,7 @@ def train():
     ntokens = len(corpus.dictionary)
     hidden = model.init_hidden(args.batch_size)
     batch, i = 0, 0
+    debug_mem = None
     while i < train_data.size(0) - 1 - 1:
         bptt = args.bptt if np.random.random() < 0.95 else args.bptt / 2.
         # Prevent excessively small or negative sequence lengths
@@ -194,12 +201,14 @@ def train():
                     epoch, batch, len(train_data) // args.bptt, optimizer.param_groups[0]['lr'],
                     elapsed * 1000 / args.log_interval, cur_loss, math.exp(cur_loss)))
             except Exception as e:
+                print('Exception in debug')
                 pass
             total_loss = 0
             start_time = time.time()
         ###
         batch += 1
         i += seq_len
+    return debug_mem
 
 # Loop over epochs.
 lr = args.lr
@@ -212,7 +221,7 @@ try:
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
-        train()
+        debug_mem = train()
         # if 't0' in optimizer.param_groups[0]:
         #     tmp = {}
         #     for prm in model.parameters():
@@ -220,6 +229,14 @@ try:
         #         prm.data = optimizer.state[prm]['ax'].clone()
 
         val_loss2 = evaluate(val_data)
+        # viz.heatmap(
+        #     debug_mem[0],
+        #     opts=dict(
+        #         title='Epoch: '+ str(epoch) +', val ppl: ' + str(math.exp(val_loss2)),
+        #         ylabel='layer * time',
+        #         xlabel='cell_size * mem_size'
+        #     )
+        # )
         print('-' * 89)
         print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                 'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),

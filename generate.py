@@ -11,6 +11,9 @@ import torch
 from torch.autograd import Variable
 
 import data
+from visdom import Visdom
+
+viz = Visdom()
 
 parser = argparse.ArgumentParser(description='PyTorch PTB Language Model')
 
@@ -67,6 +70,39 @@ with open(args.outf, 'w') as outf:
         word_idx = torch.multinomial(word_weights, 1)[0]
         input.data.fill_(word_idx)
         word = corpus.dictionary.idx2word[word_idx]
+
+        # viz.heatmap(
+        #     hidden[0][2].view(4, 512).data.cpu().numpy(),
+        #     opts=dict(
+        #         xtickstep=128,
+        #         ytickstep=1,
+        #         title='Read vectors: ' + word,
+        #         xlabel='nr_cells',
+        #         ylabel='cell_size'
+        #     )
+        # )
+
+        # viz.heatmap(
+        #     hidden[0][1]['write_weights'].squeeze(1).data.cpu().numpy(),
+        #     opts=dict(
+        #         xtickstep=128,
+        #         ytickstep=1,
+        #         title='Write weights: ' + word,
+        #         xlabel='nr_cells',
+        #         ylabel='cell_size'
+        #     )
+        # )
+
+        viz.heatmap(
+            hidden[0][1]['memory'][0].data.cpu().numpy(),
+            opts=dict(
+                xtickstep=128,
+                ytickstep=1,
+                title='Memory: ' + word,
+                xlabel='nr_cells',
+                ylabel='cell_size'
+            )
+        )
 
         outf.write(word + ('\n' if i % 20 == 19 else ' '))
 
