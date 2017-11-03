@@ -29,7 +29,7 @@ class RNNModel(nn.Module):
         cell_size=10,
         gpu_id=-1,
         independent_linears=False,
-        debug=False
+        debug=True
     ):
         super(RNNModel, self).__init__()
         self.lockdrop = LockedDropout()

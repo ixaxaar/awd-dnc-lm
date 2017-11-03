@@ -38,7 +38,26 @@ python main.py --nhid 512 --nlayers 2 --emsize 512 --cell_size 512 --read_heads 
 
 python main.py --nhid 512 --nlayers 4 --emsize 512 --cell_size 512 --read_heads 2 --nr_cells 8 --batch_size 50 --data data/penn --dropouti 0.4 --dropouth 0.25 --seed 141 --model DNC --epoch 50 --cuda 0 --save PTB-512-layers-4-dncv0.0.5-cuda0.pt --log-interval 20
 
-python main.py --nhid 512 --nlayers 4 --emsize 512 --cell_size 512 --read_heads 4 --nr_cells 8 --batch_size 50 --data data/penn --dropouti 0.4 --dropouth 0.25 --seed 141 --model DNC --epoch 50 --cuda 1 --save PTB-512-layers-4-dncv0.0.5-cuda1.pt --log-interval 20
+python main.py --nhid 512 --nlayers 4 --emsize 512 --cell_size 512 --read_heads 4 --nr_cells 8 --batch_size 50 --data data/penn --dropouti 0.4 --dropouth 0.25 --seed 141 --model DNC --epoch 50 --cuda 1 --save PTB-512-layers-4-dncv0.0.5-cuda1-debug.pt --log-interval 20
+
+
+# visdom discussion
+python main.py --nhid 512 --nlayers 2 --nhlayers 2 --emsize 512 --cell_size 512 --read_heads 4 --nr_cells 8 --batch_size 50 --data data/penn --dropouti 0.4 --dropouth 0.25 --seed 141 --model DNC --epoch 50 --cuda 1 --save PTB-512-layers-4-dncv0.0.5-cuda1-debug.pt --log-interval 20
+
+# controller layers
+for (( i = 2; i < 10; i++ )); do
+  python main.py --nhid 512 --nlayers ${i} --nhlayers 2 --emsize 512 --cell_size 256 --read_heads 4 --nr_cells 8 --batch_size 50 --data data/penn --dropouti 0.4 --dropouth 0.25 --seed 141 --model DNC --epoch 50 --cuda 1 --save PTB-512-layers-${i}-dncv0.0.5-cuda1.pt --log-interval 20 > PTB-512-layers-${i}-dncv0.0.5-cuda1.log
+done
+
+# controller layer hidden layers
+for (( i = 2; i < 4; i++ )); do
+  python main.py --nhid 512 --nlayers 2 --nhlayers ${i} --emsize 512 --cell_size 256 --read_heads 4 --nr_cells 8 --batch_size 25 --data data/penn --dropouti 0.4 --dropouth 0.25 --seed 141 --model DNC --epoch 50 --cuda 0 --save PTB-512-layers-2x${i}-dncv0.0.5-cuda0.pt --log-interval 20 > PTB-512-layers-2x${i}-dncv0.0.5-cuda0.log
+done
+
+# memory cells
+for (( i = 2; i < 20; i++ )); do
+  python main.py --nhid 512 --nlayers 2 --nhlayers 2 --emsize 512 --cell_size 256 --read_heads 4 --nr_cells $((i*2)) --batch_size 50 --data data/penn --dropouti 0.4 --dropouth 0.25 --seed 141 --model DNC --epoch 50 --cuda 0 --save PTB-512-layers-2x2-cells-$((i*2))-cuda0.pt --log-interval 20 > PTB-512-layers-2x2-cells-$((i*2))-cuda0.log
+done
 
 
 

@@ -65,42 +65,75 @@ if args.cuda:
 
 with open(args.outf, 'w') as outf:
     for i in range(args.words):
-        output, hidden = model(input, hidden)
+        output, hidden, v = model(input, hidden)
         word_weights = output.squeeze().data.div(args.temperature).exp().cpu()
         word_idx = torch.multinomial(word_weights, 1)[0]
         input.data.fill_(word_idx)
         word = corpus.dictionary.idx2word[word_idx]
 
-        # viz.heatmap(
-        #     hidden[0][2].view(4, 512).data.cpu().numpy(),
-        #     opts=dict(
-        #         xtickstep=128,
-        #         ytickstep=1,
-        #         title='Read vectors: ' + word,
-        #         xlabel='nr_cells',
-        #         ylabel='cell_size'
-        #     )
-        # )
-
-        # viz.heatmap(
-        #     hidden[0][1]['write_weights'].squeeze(1).data.cpu().numpy(),
-        #     opts=dict(
-        #         xtickstep=128,
-        #         ytickstep=1,
-        #         title='Write weights: ' + word,
-        #         xlabel='nr_cells',
-        #         ylabel='cell_size'
-        #     )
-        # )
+        viz.heatmap(
+            v['memory'],
+            opts=dict(
+                xtickstep=10,
+                ytickstep=2,
+                title='Memory, t: ' + str(epoch) + ', loss: ' + str(loss),
+                ylabel='layer * time',
+                xlabel='mem_slot * mem_size'
+            )
+        )
 
         viz.heatmap(
-            hidden[0][1]['memory'][0].data.cpu().numpy(),
+            v['link_matrix'],
             opts=dict(
-                xtickstep=128,
-                ytickstep=1,
-                title='Memory: ' + word,
-                xlabel='nr_cells',
-                ylabel='cell_size'
+                xtickstep=10,
+                ytickstep=2,
+                title='Link Matrix, t: ' + str(epoch) + ', loss: ' + str(loss),
+                ylabel='layer * time',
+                xlabel='mem_slot * mem_slot'
+            )
+        )
+
+        viz.heatmap(
+            v['precedence'],
+            opts=dict(
+                xtickstep=10,
+                ytickstep=2,
+                title='Precedence, t: ' + str(epoch) + ', loss: ' + str(loss),
+                ylabel='layer * time',
+                xlabel='mem_slot'
+            )
+        )
+
+        viz.heatmap(
+            v['read_weights'],
+            opts=dict(
+                xtickstep=10,
+                ytickstep=2,
+                title='Read Weights, t: ' + str(epoch) + ', loss: ' + str(loss),
+                ylabel='layer * time',
+                xlabel='nr_read_heads * mem_slot'
+            )
+        )
+
+        viz.heatmap(
+            v['write_weights'],
+            opts=dict(
+                xtickstep=10,
+                ytickstep=2,
+                title='Write Weights, t: ' + str(epoch) + ', loss: ' + str(loss),
+                ylabel='layer * time',
+                xlabel='mem_slot'
+            )
+        )
+
+        viz.heatmap(
+            v['usage_vector'],
+            opts=dict(
+                xtickstep=10,
+                ytickstep=2,
+                title='Usage Vector, t: ' + str(epoch) + ', loss: ' + str(loss),
+                ylabel='layer * time',
+                xlabel='mem_slot'
             )
         )
 

@@ -49,6 +49,8 @@ parser.add_argument('--wdrop', type=float, default=0.5,
                     help='amount of weight dropout to apply to the RNN hidden to hidden matrix')
 parser.add_argument('--tied', action='store_false',
                     help='tie the word embedding and softmax weights')
+parser.add_argument('--debug', action='store_true',
+                    help='debug DNC memory contents in visdom (on localhost)')
 parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--nonmono', type=int, default=5,
@@ -176,7 +178,7 @@ def train():
             hidden = repackage_hidden_dnc(hidden)
         optimizer.zero_grad()
 
-        output, hidden, rnn_hs, dropped_rnn_hs = model(data, hidden, return_h=True)
+        output, hidden, rnn_hs, dropped_rnn_hs, debug_mem = model(data, hidden, return_h=True)
         raw_loss = criterion(output.view(-1, ntokens), targets)
 
         loss = raw_loss
@@ -221,7 +223,7 @@ try:
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
-        debug_mem = train()
+        v = train()
         # if 't0' in optimizer.param_groups[0]:
         #     tmp = {}
         #     for prm in model.parameters():
@@ -229,14 +231,74 @@ try:
         #         prm.data = optimizer.state[prm]['ax'].clone()
 
         val_loss2 = evaluate(val_data)
-        # viz.heatmap(
-        #     debug_mem[0],
-        #     opts=dict(
-        #         title='Epoch: '+ str(epoch) +', val ppl: ' + str(math.exp(val_loss2)),
-        #         ylabel='layer * time',
-        #         xlabel='cell_size * mem_size'
-        #     )
-        # )
+
+        if args.debug:
+            viz.heatmap(
+                v[0]['memory'],
+                opts=dict(
+                    xtickstep=10,
+                    ytickstep=2,
+                    title='Memory, t: ' + str(epoch) + ', ppx: ' + str(math.exp(val_loss2)),
+                    ylabel='layer * time',
+                    xlabel='mem_slot * mem_size'
+                )
+            )
+
+            viz.heatmap(
+                v[0]['link_matrix'],
+                opts=dict(
+                    xtickstep=10,
+                    ytickstep=2,
+                    title='Link Matrix, t: ' + str(epoch) + ', ppx: ' + str(math.exp(val_loss2)),
+                    ylabel='layer * time',
+                    xlabel='mem_slot * mem_slot'
+                )
+            )
+
+            viz.heatmap(
+                v[0]['precedence'],
+                opts=dict(
+                    xtickstep=10,
+                    ytickstep=2,
+                    title='Precedence, t: ' + str(epoch) + ', ppx: ' + str(math.exp(val_loss2)),
+                    ylabel='layer * time',
+                    xlabel='mem_slot'
+                )
+            )
+
+            viz.heatmap(
+                v[0]['read_weights'],
+                opts=dict(
+                    xtickstep=10,
+                    ytickstep=2,
+                    title='Read Weights, t: ' + str(epoch) + ', ppx: ' + str(math.exp(val_loss2)),
+                    ylabel='layer * time',
+                    xlabel='nr_read_heads * mem_slot'
+                )
+            )
+
+            viz.heatmap(
+                v[0]['write_weights'],
+                opts=dict(
+                    xtickstep=10,
+                    ytickstep=2,
+                    title='Write Weights, t: ' + str(epoch) + ', ppx: ' + str(math.exp(val_loss2)),
+                    ylabel='layer * time',
+                    xlabel='mem_slot'
+                )
+            )
+
+            viz.heatmap(
+                v[0]['usage_vector'],
+                opts=dict(
+                    xtickstep=10,
+                    ytickstep=2,
+                    title='Usage Vector, t: ' + str(epoch) + ', ppx: ' + str(math.exp(val_loss2)),
+                    ylabel='layer * time',
+                    xlabel='mem_slot'
+                )
+            )
+
         print('-' * 89)
         print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
                 'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
