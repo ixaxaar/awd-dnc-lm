@@ -34,6 +34,9 @@ parser.add_argument('--temperature', type=float, default=1.0,
                     help='temperature - higher will increase diversity')
 parser.add_argument('--log-interval', type=int, default=100,
                     help='reporting interval')
+parser.add_argument('--debug', action='store_true',
+                    help='debug DNC memory contents in visdom (on localhost)')
+
 args = parser.parse_args()
 
 # Set the random seed manually for reproducibility.
@@ -64,7 +67,6 @@ if args.cuda:
     input.data = input.data.cuda(args.cuda)
 
 with open(args.outf, 'w') as outf:
-    debug = []
 
     mem_debug = {
         "memory": [],
@@ -75,14 +77,20 @@ with open(args.outf, 'w') as outf:
         "usage_vector": [],
     }
 
-
+    debug = []
+    out_words = []
     for i in range(args.words):
-        output, hidden, v = model(input, hidden, reset_experience=False)
-        debug.append(v)
+        if model.debug:
+            output, hidden, v = model(input, hidden, reset_experience=False)
+            debug.append(v)
+        else:
+            output, hidden = model(input, hidden, reset_experience=False)
         word_weights = output.squeeze().data.div(args.temperature).exp().cpu()
         word_idx = torch.multinomial(word_weights, 1)[0]
         input.data.fill_(word_idx)
         word = corpus.dictionary.idx2word[word_idx]
+        out_words.append(str(i)+"......................"+word)
+        out_words.append(str(i)+word+"......................")
 
         outf.write(word + ('\n' if i % 20 == 19 else ' '))
 
@@ -90,82 +98,77 @@ with open(args.outf, 'w') as outf:
             print('| Generated {}/{} words'.format(i, args.words))
 
 
-    mem_debug["memory"] += [ x[0]["memory"] for x in debug ]
-    mem_debug["link_matrix"] += [ x[0]["link_matrix"] for x in debug ]
-    mem_debug["precedence"] += [ x[0]["precedence"] for x in debug ]
-    mem_debug["read_weights"] += [ x[0]["read_weights"] for x in debug ]
-    mem_debug["write_weights"] += [ x[0]["write_weights"] for x in debug ]
-    mem_debug["usage_vector"] += [ x[0]["usage_vector"] for x in debug ]
+    if args.debug:
+        mem_debug["memory"] += [ x[0]["memory"] for x in debug ]
+        mem_debug["link_matrix"] += [ x[0]["link_matrix"] for x in debug ]
+        mem_debug["precedence"] += [ x[0]["precedence"] for x in debug ]
+        mem_debug["read_weights"] += [ x[0]["read_weights"] for x in debug ]
+        mem_debug["write_weights"] += [ x[0]["write_weights"] for x in debug ]
+        mem_debug["usage_vector"] += [ x[0]["usage_vector"] for x in debug ]
 
-    print("=====================================================")
-    print(model)
-    print("=====================================================")
-    mem_debug = { k: np.array(v) for k,v in mem_debug.items() }
-    mem_debug = { k: v.reshape(v.shape[0], v.shape[1] * v.shape[2]) for k,v in mem_debug.items() }
+        print("=====================================================")
+        print(model)
+        print("=====================================================")
+        mem_debug = { k: np.array(v) for k,v in mem_debug.items() }
+        mem_debug = { k: v.reshape(v.shape[0] * v.shape[1], v.shape[2]) for k,v in mem_debug.items() }
 
-    viz.heatmap(
-        mem_debug['memory'],
-        opts=dict(
-            xtickstep=10,
-            ytickstep=2,
-            title='Memory, t: ' + str(i),
-            ylabel='layer * time',
-            xlabel='mem_slot * mem_size'
+        viz.heatmap(
+            mem_debug['memory'],
+            opts=dict(
+                title='Memory, t: ' + str(i),
+                ylabel='layer * time',
+                xlabel='mem_slot * mem_size',
+                rownames=out_words
+            )
         )
-    )
 
-    viz.heatmap(
-        mem_debug['link_matrix'],
-        opts=dict(
-            xtickstep=10,
-            ytickstep=2,
-            title='Link Matrix, t: ' + str(i),
-            ylabel='layer * time',
-            xlabel='mem_slot * mem_slot'
+        viz.heatmap(
+            mem_debug['link_matrix'],
+            opts=dict(
+                rownames=out_words,
+                title='Link Matrix, t: ' + str(i),
+                ylabel='layer * time',
+                xlabel='mem_slot * mem_slot'
+            )
         )
-    )
 
-    viz.heatmap(
-        mem_debug['precedence'],
-        opts=dict(
-            xtickstep=10,
-            ytickstep=2,
-            title='Precedence, t: ' + str(i),
-            ylabel='layer * time',
-            xlabel='mem_slot'
+        viz.heatmap(
+            mem_debug['precedence'],
+            opts=dict(
+                rownames=out_words,
+                title='Precedence, t: ' + str(i),
+                ylabel='layer * time',
+                xlabel='mem_slot'
+            )
         )
-    )
 
-    viz.heatmap(
-        mem_debug['read_weights'],
-        opts=dict(
-            xtickstep=10,
-            ytickstep=2,
-            title='Read Weights, t: ' + str(i),
-            ylabel='layer * time',
-            xlabel='nr_read_heads * mem_slot'
+        viz.heatmap(
+            mem_debug['read_weights'],
+            opts=dict(
+                rownames=out_words,
+                title='Read Weights, t: ' + str(i),
+                ylabel='layer * time',
+                xlabel='nr_read_heads * mem_slot'
+            )
         )
-    )
 
-    viz.heatmap(
-        mem_debug['write_weights'],
-        opts=dict(
-            xtickstep=10,
-            ytickstep=2,
-            title='Write Weights, t: ' + str(i),
-            ylabel='layer * time',
-            xlabel='mem_slot'
+        viz.heatmap(
+            mem_debug['write_weights'],
+            opts=dict(
+                rownames=out_words,
+                title='Write Weights, t: ' + str(i),
+                ylabel='layer * time',
+                xlabel='mem_slot'
+            )
         )
-    )
 
-    viz.heatmap(
-        mem_debug['usage_vector'],
-        opts=dict(
-            xtickstep=10,
-            ytickstep=2,
-            title='Usage Vector, t: ' + str(i),
-            ylabel='layer * time',
-            xlabel='mem_slot'
+        viz.heatmap(
+            mem_debug['usage_vector'],
+            opts=dict(
+                rownames=out_words,
+                title='Usage Vector, t: ' + str(i),
+                ylabel='layer * time',
+                xlabel='mem_slot'
+            )
         )
-    )
 
