@@ -139,7 +139,7 @@ def evaluate(data_source, batch_size=10):
     hidden = model.init_hidden(batch_size)
     for i in range(0, data_source.size(0) - 1, args.bptt):
         data, targets = get_batch(data_source, i, args, evaluation=True)
-        output, hidden, _ = model(data, hidden)
+        output, hidden, _ = model(data, hidden, reset_experience=True)
         output_flat = output.view(-1, ntokens)
         total_loss += len(data) * criterion(output_flat, targets).data
         if args.model.lower() != 'dnc':
@@ -178,7 +178,7 @@ def train():
             hidden = repackage_hidden_dnc(hidden)
         optimizer.zero_grad()
 
-        output, hidden, rnn_hs, dropped_rnn_hs, debug_mem = model(data, hidden, return_h=True)
+        output, hidden, rnn_hs, dropped_rnn_hs, debug_mem = model(data, hidden, return_h=True, reset_experience=True)
         raw_loss = criterion(output.view(-1, ntokens), targets)
 
         loss = raw_loss
