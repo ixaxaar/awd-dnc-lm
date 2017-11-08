@@ -90,13 +90,10 @@ else:
     output, hidden = model(input, hidden, reset_experience=True)
 
 word_weights = output.squeeze().data.div(args.temperature).exp().cpu()
-ppx = [ torch.topk(w, args.nbest)[0] for w in word_weights ]
-# print(ppx)
-ppx = [ p[0] for p in ppx ]
-ppx = np.array(ppx)
-ppxt = np.arange(ppx.shape[0])
-# ppx = np.array([ppx, ppxt])
-print(ppx)
+ppx = [ torch.topk(w, args.nbest)[0].numpy() for w in word_weights ]
+ppx = np.array(ppx).tolist()
+ppx = [ [ pp / max(p) for pp in p ] for p in ppx]
+
 word_idx = [ torch.topk(w, args.nbest)[1] for w in word_weights ]
 words = [ [ corpus.dictionary.idx2word[w] for w in ws ] for ws in word_idx ]
 
@@ -104,7 +101,6 @@ mem_debug = v[0]
 total_len = len(words)
 matched = 0
 for i,w in enumerate(words):
-    print(w)
     out_words.append(str(i)+"......................"+raw_input[i+1])
     if raw_input[i+1] in w:
         out_words.append(str(i+1)+"********************************")
@@ -123,14 +119,13 @@ if args.debug:
     for k,v in mem_debug.items():
         print(k, v.shape)
 
-    viz.line(
+    viz.contour(
         X=ppx,
-        Y=ppxt,
         opts=dict(
             colormap='Viridis',
             title='DNC output',
-            ylabel='time',
-            xlabel='value',
+            ylabel='Time',
+            xlabel='Top k values',
             markers=True,
             fillarea=False
         )
@@ -141,8 +136,8 @@ if args.debug:
         opts=dict(
             colormap='Viridis',
             title='Memory',
-            ylabel='layer * time',
-            xlabel='mem_slot * mem_size',
+            ylabel='Controller Layer * Time',
+            xlabel='Number of memory cells * Size of Memory',
             rownames=out_words
         )
     )
@@ -153,8 +148,8 @@ if args.debug:
             colormap='Viridis',
             rownames=out_words,
             title='Link Matrix',
-            ylabel='layer * time',
-            xlabel='mem_slot * mem_slot'
+            ylabel='Controller Layer * Time',
+            xlabel='Number of memory cells * Number of memory cells'
         )
     )
 
@@ -164,8 +159,8 @@ if args.debug:
             colormap='Viridis',
             rownames=out_words,
             title='Precedence',
-            ylabel='layer * time',
-            xlabel='mem_slot'
+            ylabel='Controller Layer * Time',
+            xlabel='Number of memory cells'
         )
     )
 
@@ -175,8 +170,8 @@ if args.debug:
             colormap='Viridis',
             rownames=out_words,
             title='Read Weights',
-            ylabel='layer * time',
-            xlabel='nr_read_heads * mem_slot'
+            ylabel='Controller Layer * Time',
+            xlabel='Number of Read Heads * Number of memory cells'
         )
     )
 
@@ -186,8 +181,8 @@ if args.debug:
             rownames=out_words,
             colormap='Viridis',
             title='Write Weights',
-            ylabel='layer * time',
-            xlabel='mem_slot'
+            ylabel='Controller Layer * Time',
+            xlabel='Number of memory cells'
         )
     )
 
@@ -197,8 +192,8 @@ if args.debug:
             colormap='Viridis',
             rownames=out_words,
             title='Usage Vector',
-            ylabel='layer * time',
-            xlabel='mem_slot'
+            ylabel='Controller Layer * Time',
+            xlabel='Number of memory cells'
         )
     )
 
