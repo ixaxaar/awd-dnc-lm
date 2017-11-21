@@ -62,12 +62,13 @@ class RNNModel(nn.Module):
                     cell_size=cell_size,
                     gpu_id=gpu_id,
                     independent_linears=independent_linears,
-                    debug=debug
+                    debug=debug,
+                    dropout=wdrop
                 )
             )
         print(self.rnns)
         self.rnns = torch.nn.ModuleList(self.rnns)
-        self.decoder = nn.Linear(nhid, ntoken)
+        self.decoder = nn.Linear(ninp, ntoken)
 
         # Optionally tie weights as in:
         # "Using the Output Embedding to Improve Language Models" (Press & Wolf 2016)
@@ -118,7 +119,7 @@ class RNNModel(nn.Module):
             if self.rnn_type.lower() == 'dnc':
                 raw_output = raw_output.transpose(0, 1)
                 if self.debug:
-                    raw_output, new_h, debug = rnn(raw_output, hidden[l], reset_experience=reset_experience)
+                    raw_output, new_h, debug = rnn(raw_output, hidden[l], reset_experience=reset_experience, pass_through_memory=True)
                     debug_mems.append(debug)
                 else:
                     raw_output, new_h = rnn(raw_output, hidden[l], reset_experience=reset_experience)
