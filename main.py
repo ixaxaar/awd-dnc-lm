@@ -4,6 +4,7 @@ import math
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from torch.autograd import Variable
 
 from visdom import Visdom
@@ -29,6 +30,10 @@ parser.add_argument('--nhlayers', type=int, default=1,
                     help='number of hidden layers')
 parser.add_argument('--lr', type=float, default=0.001,
                     help='initial learning rate')
+parser.add_argument('--optim', type=str, default='adam', \
+                    help='learning rule, supports adam|rmsprop')
+parser.add_argument('--reset', action='store_true',
+                    help='Reset DNC memory contents on every forward pass')
 parser.add_argument('--clip', type=float, default=0.25,
                     help='gradient clipping')
 parser.add_argument('--epochs', type=int, default=8000,
@@ -67,6 +72,12 @@ parser.add_argument('--beta', type=float, default=1,
                     help='beta slowness regularization applied on RNN activiation (beta = 0 means no regularization)')
 parser.add_argument('--wdecay', type=float, default=1.2e-6,
                     help='weight decay applied to all weights')
+parser.add_argument('--start-decay-at', type=int, default=50,
+                    help='start decaying learning rate from this epoch')
+parser.add_argument('--decay-multiplier', type=float, default=0.5,
+                    help='this will be multiplied with the current learning \
+                    rate every epoch starting from --start-decay-at epochs')
+
 
 parser.add_argument('--nr_cells', type=int, default=8, help='Number of memory cells of the DNC')
 parser.add_argument('--read_heads', type=int, default=4, help='Number of read heads of the DNC')
@@ -178,7 +189,7 @@ def train():
             hidden = repackage_hidden_dnc(hidden)
         optimizer.zero_grad()
 
-        output, hidden, rnn_hs, dropped_rnn_hs, debug_mem = model(data, hidden, return_h=True, reset_experience=True)
+        output, hidden, rnn_hs, dropped_rnn_hs, debug_mem = model(data, hidden, return_h=True, reset_experience=args.reset)
         raw_loss = criterion(output.view(-1, ntokens), targets)
 
         loss = raw_loss
@@ -219,16 +230,26 @@ stored_loss = 100000000
 
 # At any point you can hit Ctrl + C to break out of training early.
 try:
-    # optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.wdecay)
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
     for epoch in range(1, args.epochs+1):
+
+        if args.optim == 'adam':
+            optimizer = optim.Adam(model.parameters(), lr=lr, eps=1e-9, betas=[0.9, 0.98]) # 0.0001
+        if args.optim == 'sparseadam':
+            optimizer = optim.SparseAdam(model.parameters(), lr=lr, eps=1e-9, betas=[0.9, 0.98]) # 0.0001
+        if args.optim == 'adamax':
+            optimizer = optim.Adamax(model.parameters(), lr=lr, eps=1e-9, betas=[0.9, 0.98]) # 0.0001
+        elif args.optim == 'rmsprop':
+            optimizer = optim.RMSprop(model.parameters(), lr=lr, eps=1e-10) # 0.0001
+        elif args.optim == 'sgd':
+            optimizer = optim.SGD(model.parameters(), lr=lr, weight_decay=args.wdecay) # 0.01
+        elif args.optim == 'adagrad':
+            optimizer = optim.Adagrad(model.parameters(), lr=lr)
+        elif args.optim == 'adadelta':
+            optimizer = optim.Adadelta(model.parameters(), lr=lr)
+
         epoch_start_time = time.time()
         v = train()
-        # if 't0' in optimizer.param_groups[0]:
-        #     tmp = {}
-        #     for prm in model.parameters():
-        #         tmp[prm] = prm.data.clone()
-        #         prm.data = optimizer.state[prm]['ax'].clone()
 
         val_loss2 = evaluate(val_data)
 
@@ -310,33 +331,12 @@ try:
                 torch.save(model, f)
             print('Saving Averaged!')
             stored_loss = val_loss2
-        # else:
-            # print('Reducing learning rate')
-            # args.lr = args.lr / 4
-            # optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-
-        # for prm in model.parameters():
-        #     prm.data = tmp[prm].clone()
-
-        # else:
-        #     val_loss = evaluate(val_data, eval_batch_size)
-        #     print('-' * 89)
-        #     print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | '
-        #             'valid ppl {:8.2f}'.format(epoch, (time.time() - epoch_start_time),
-        #                                        val_loss, math.exp(val_loss)))
-        #     print('-' * 89)
-
-        #     if val_loss < stored_loss:
-        #         with open(args.save, 'wb') as f:
-        #             torch.save(model, f)
-        #         print('Saving Normal!')
-        #         stored_loss = val_loss
-
-        #     if 't0' not in optimizer.param_groups[0] and (len(best_val_loss)>args.nonmono and val_loss > min(best_val_loss[:-args.nonmono])):
-        #         print('Not Switching lol!')
-        #         # optimizer = torch.optim.ASGD(model.parameters(), lr=args.lr, t0=0, lambd=0., weight_decay=args.wdecay)
-        #         #optimizer.param_groups[0]['lr'] /= 2.
-        #     best_val_loss.append(val_loss)
+            if epoch >= args.start_decay_at:
+                print('Reducing learning rate')
+                lr = lr * args.decay_multiplier
+        else:
+            print('Reducing learning rate')
+            lr = lr * args.decay_multiplier
 
 except KeyboardInterrupt:
     print('-' * 89)
