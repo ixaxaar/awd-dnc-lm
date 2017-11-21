@@ -4,8 +4,10 @@ def repackage_hidden(h):
     """Wraps hidden states in new Variables, to detach them from their history."""
     if type(h) == Variable:
         return Variable(h.data)
-    else:
+    elif type(h) == tuple:
         return tuple(repackage_hidden(v) for v in h)
+    elif type(h) == list:
+        return [ repackage_hidden(v) for v in h ]
 
 def repackage_hidden_dnc(h):
   if h is None:

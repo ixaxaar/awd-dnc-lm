@@ -81,7 +81,6 @@ mem_debug = {
 }
 
 debug = []
-out_words = []
 
 if model.debug:
     output, hidden, v = model(input, hidden, reset_experience=True)
@@ -100,14 +99,17 @@ words = [ [ corpus.dictionary.idx2word[w] for w in ws ] for ws in word_idx ]
 mem_debug = v[0]
 total_len = len(words)
 matched = 0
-for i,w in enumerate(words):
-    out_words.append(str(i)+"......................"+raw_input[i+1])
-    if raw_input[i+1] in w:
-        out_words.append(str(i+1)+"********************************")
-        matched += 1
-    else:
-        out_words.append(str(i+1)+".   ("+w[0]+")")
+# layer1_inputs = []
+# layern_outputs = []
+# for i,w in enumerate(words):
+#     layer1_inputs.append(str(i)+"             "+raw_input[i+1])
+#     if raw_input[i+1] in w:
+#         layern_outputs.append(str(i+1)+"**"+"             "+raw_input[i+1])
+#         matched += 1
+#     else:
+#         layern_outputs.append(str(i+1)+"**"+"             "+"("+w[0]+")")
 
+out_words = layer1_inputs + layern_outputs
 print("Matched: %s / %s" % (matched, total_len-1))
 
 if args.debug:
@@ -115,6 +117,11 @@ if args.debug:
     print("=====================================================")
     print(model)
     print("=====================================================")
+
+
+    # interlace layers
+    # n = model.nlayers
+    # mem_debug = { k: v.reshape((n, int(v.shape[0]/n), v.shape[1])).transpose((1,0,2)).reshape((v.shape[0], v.shape[1])) for k,v in mem_debug.items() }
 
     for k,v in mem_debug.items():
         print(k, v.shape)
@@ -138,7 +145,9 @@ if args.debug:
             title='Memory',
             ylabel='Controller Layer * Time',
             xlabel='Number of memory cells * Size of Memory',
-            rownames=out_words
+            rownames=out_words,
+            xmin=0,
+            xmax=0.5
         )
     )
 
@@ -147,6 +156,8 @@ if args.debug:
         opts=dict(
             colormap='Viridis',
             rownames=out_words,
+            xmin=0,
+            xmax=0.5,
             title='Link Matrix',
             ylabel='Controller Layer * Time',
             xlabel='Number of memory cells * Number of memory cells'
@@ -158,6 +169,8 @@ if args.debug:
         opts=dict(
             colormap='Viridis',
             rownames=out_words,
+            xmin=0,
+            xmax=0.5,
             title='Precedence',
             ylabel='Controller Layer * Time',
             xlabel='Number of memory cells'
@@ -169,6 +182,8 @@ if args.debug:
         opts=dict(
             colormap='Viridis',
             rownames=out_words,
+            xmin=0,
+            xmax=0.5,
             title='Read Weights',
             ylabel='Controller Layer * Time',
             xlabel='Number of Read Heads * Number of memory cells'
@@ -179,6 +194,8 @@ if args.debug:
         mem_debug['write_weights'],
         opts=dict(
             rownames=out_words,
+            xmin=0,
+            xmax=0.5,
             colormap='Viridis',
             title='Write Weights',
             ylabel='Controller Layer * Time',
@@ -191,6 +208,8 @@ if args.debug:
         opts=dict(
             colormap='Viridis',
             rownames=out_words,
+            xmin=0,
+            xmax=0.5,
             title='Usage Vector',
             ylabel='Controller Layer * Time',
             xlabel='Number of memory cells'
