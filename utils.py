@@ -8,6 +8,8 @@ def repackage_hidden(h):
         return tuple(repackage_hidden(v) for v in h)
     elif type(h) == list:
         return [ repackage_hidden(v) for v in h ]
+    else:
+      return h
 
 def repackage_hidden_dnc(h):
   if h is None:

@@ -224,7 +224,12 @@ python main.py --nhid 2000 --nlayers 1 --nhlayers 3 --emsize 300 --debug --cell_
 python main.py --nhid 500 --optim rmsprop --lr 0.0001 --nlayers 1 --nhlayers 3 --emsize 300 --debug --cell_size 50 --read_heads 4 --nr_cells 100 --batch_size 25 --data data/penn --dropouti 0.4 --dropouth 0.25 --seed 141 --model DNC --epoch 250 --cuda 1 --save PTB-proportional.pt --log-interval 20
 
 # start_decay_at 20
-python main.py --nhid 500 --start-decay-at 20 --optim adadelta --lr 1 --nlayers 1 --nhlayers 3 --emsize 300 --cell_size 50 --read_heads 4 --nr_cells 100 --batch_size 25 --data data/penn --dropouti 0.4 --dropouth 0.25 --seed 141 --model DNC --epoch 250 --cuda 0 --save PTB-proportional.pt --log-interval 20 --seed 218
+python main.py --nhid 500 --start-decay-at 20 --optim adam --lr 0.01 --nlayers 1 --nhlayers 3 --emsize 300 --cell_size 50 --read_heads 4 --nr_cells 100 --batch_size 25 --data data/penn --dropouti 0.4 --dropouth 0.25 --seed 141 --model DNC --epoch 250 --cuda 0 --save PTB-proportional.pt --log-interval 20 --seed 218
+
+# more smaller cells, 2 read heads, bptt equal to cells
+python main.py --bptt 500 --nhid 500 --start-decay-at 20 --optim adadelta --lr 3 --nlayers 1 --nhlayers 2 --emsize 300 --cell_size 20 --read_heads 2 --nr_cells 500 --batch_size 10 --data data/penn --dropouti 0.4 --dropouth 0.25 --seed 141 --model DNC --epoch 250 --cuda 0 --save PTB-proportional.pt --log-interval 20 --seed 218
+
+
 
 python main.py --nhid 500 --start-decay-at 20 --optim adam --lr 0.01 --nlayers 1 --nhlayers 3 --emsize 300 --cell_size 50 --read_heads 4 --nr_cells 100 --batch_size 25 --data data/penn --dropouti 0.4 --dropouth 0.25 --seed 141 --model DNC --epoch 250 --cuda 0 --save PTB-proportional.pt --log-interval 20 --seed 218
 
@@ -256,7 +261,9 @@ python main.py --nhid 500 --nlayers 1 --nhlayers 3 --emsize 300 --debug --cell_s
 # shitloads of memory - 95.60 / 91.20
 python main.py --nhid 500 --nlayers 1 --nhlayers 3 --emsize 300 --debug --cell_size 50 --read_heads 4 --nr_cells 200 --batch_size 25 --data data/penn --dropouti 0.4 --dropouth 0.25 --seed 141 --model DNC --epoch 25 --cuda 1 --save PTB-proportional-no_reset_exp.pt_cells_200.pt --log-interval 20
 
+# SDNC
 
+python main.py --reset --nhid 500 --nlayers 1 --nhlayers 3 --emsize 300 --cell_size 20 --read_heads 2 --sparse_reads 10 --nr_cells 1000 --batch_size 25 --data data/penn --dropouti 0.4 --dropouth 0.25 --lr 1 --optim adadelta --seed 141 --model SDNC --epoch 25 --cuda 0 --save PTB-SDNC.pt --log-interval 20
 
 
 

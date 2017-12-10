@@ -1,12 +1,13 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
+import numpy as np
 
 from embed_regularize import embedded_dropout
 from locked_dropout import LockedDropout
 from weight_drop import WeightDrop
 
-from dnc import DNC
+from dnc import SDNC
 
 class RNNModel(nn.Module):
     """Container module with an encoder, a recurrent module, and a decoder."""
@@ -26,6 +27,7 @@ class RNNModel(nn.Module):
         tie_weights=False,
         nr_cells=5,
         read_heads=2,
+        sparse_reads=10,
         cell_size=10,
         gpu_id=-1,
         independent_linears=False,
@@ -38,7 +40,7 @@ class RNNModel(nn.Module):
         self.drop = nn.Dropout(dropout)
         self.encoder = nn.Embedding(ntoken, ninp)
         self.debug = debug
-        assert rnn_type in ['LSTM', 'QRNN', 'DNC'], 'RNN type is not supported'
+        assert rnn_type in ['LSTM', 'QRNN', 'DNC', 'SDNC'], 'RNN type is not supported'
         if rnn_type == 'LSTM':
             self.rnns = [torch.nn.LSTM(ninp if l == 0 else nhid, nhid if l != nlayers - 1 else ninp, 1, dropout=0) for l in range(nlayers)]
             if wdrop:
@@ -48,6 +50,25 @@ class RNNModel(nn.Module):
             self.rnns = [QRNNLayer(input_size=ninp if l == 0 else nhid, hidden_size=nhid if l != nlayers - 1 else ninp, save_prev_x=True, zoneout=0, window=2 if l == 0 else 1, output_gate=True if l != nlayers - 1 else True) for l in range(nlayers)]
             for rnn in self.rnns:
                 rnn.linear = WeightDrop(rnn.linear, ['weight'], dropout=wdrop)
+        elif rnn_type.lower() == 'sdnc':
+            self.rnns = []
+            self.rnns.append(
+                SDNC(
+                    input_size=ninp,
+                    hidden_size=nhid,
+                    num_layers=nlayers,
+                    num_hidden_layers=nhlayers,
+                    rnn_type='lstm',
+                    nr_cells=nr_cells,
+                    read_heads=read_heads,
+                    sparse_reads=sparse_reads,
+                    cell_size=cell_size,
+                    gpu_id=gpu_id,
+                    independent_linears=independent_linears,
+                    debug=debug,
+                    dropout=0
+                )
+            )
         elif rnn_type.lower() == 'dnc':
             self.rnns = []
             self.rnns.append(
@@ -116,7 +137,7 @@ class RNNModel(nn.Module):
             debug_mems = []
         for l, rnn in enumerate(self.rnns):
             current_input = raw_output
-            if self.rnn_type.lower() == 'dnc':
+            if 'dnc' in self.rnn_type.lower():
                 raw_output = raw_output.transpose(0, 1)
                 if self.debug:
                     raw_output, new_h, debug = rnn(raw_output, hidden[l], reset_experience=reset_experience, pass_through_memory=True)
@@ -156,5 +177,5 @@ class RNNModel(nn.Module):
         elif self.rnn_type == 'QRNN':
             return [Variable(weight.new(1, bsz, self.nhid if l != self.nlayers - 1 else self.ninp).zero_())
                     for l in range(self.nlayers)]
-        elif self.rnn_type.lower() == 'dnc':
+        elif 'dnc' in self.rnn_type.lower():
             return [None]

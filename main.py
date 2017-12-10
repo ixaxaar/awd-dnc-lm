@@ -13,13 +13,15 @@ viz = Visdom()
 import data
 import model
 
+from dnc.util import register_nan_checks
+
 from utils import batchify, get_batch, repackage_hidden, repackage_hidden_dnc
 
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='data/penn/',
                     help='location of the data corpus')
 parser.add_argument('--model', type=str, default='LSTM',
-                    help='type of recurrent net (LSTM, QRNN, DNC)')
+                    help='type of recurrent net (LSTM, QRNN, DNC, SDNC)')
 parser.add_argument('--emsize', type=int, default=400,
                     help='size of word embeddings')
 parser.add_argument('--nhid', type=int, default=400,
@@ -79,9 +81,10 @@ parser.add_argument('--decay-multiplier', type=float, default=0.5,
                     rate every epoch starting from --start-decay-at epochs')
 
 
-parser.add_argument('--nr_cells', type=int, default=8, help='Number of memory cells of the DNC')
-parser.add_argument('--read_heads', type=int, default=4, help='Number of read heads of the DNC')
-parser.add_argument('--cell_size', type=int, default=400, help='Cell sizes of DNC')
+parser.add_argument('--nr_cells', type=int, default=8, help='Number of memory cells of the DNC / SDNC')
+parser.add_argument('--read_heads', type=int, default=4, help='Number of read heads of the DNC / SDNC')
+parser.add_argument('--sparse_reads', type=int, default=4, help='Number of sparse memory cells recalled per read head for SDNC')
+parser.add_argument('--cell_size', type=int, default=400, help='Cell sizes of DNC / SDNC')
 
 args = parser.parse_args()
 
@@ -126,9 +129,11 @@ model = model.RNNModel(
     False,
     args.nr_cells,
     args.read_heads,
+    args.sparse_reads,
     args.cell_size,
     args.cuda
 )
+register_nan_checks(model)
 if args.cuda != -1:
     model.cuda(args.cuda)
 total_params = sum(x.size()[0] * x.size()[1] if len(x.size()) > 1 else x.size()[0] for x in model.parameters())
@@ -153,7 +158,7 @@ def evaluate(data_source, batch_size=10):
         output, hidden, _ = model(data, hidden, reset_experience=True)
         output_flat = output.view(-1, ntokens)
         total_loss += len(data) * criterion(output_flat, targets).data
-        if args.model.lower() != 'dnc':
+        if 'dnc' not in args.model.lower():
             hidden = repackage_hidden(hidden)
         else:
             hidden = repackage_hidden_dnc(hidden)
@@ -183,7 +188,7 @@ def train():
 
         # Starting each batch, we detach the hidden state from how it was previously produced.
         # If we didn't, the model would try backpropagating all the way to start of the dataset.
-        if args.model.lower() != 'dnc':
+        if 'dnc' not in args.model.lower():
             hidden = repackage_hidden(hidden)
         else:
             hidden = repackage_hidden_dnc(hidden)
@@ -253,7 +258,7 @@ try:
 
         val_loss2 = evaluate(val_data)
 
-        if args.debug:
+        if False:
             viz.heatmap(
                 v[0]['memory'],
                 opts=dict(
